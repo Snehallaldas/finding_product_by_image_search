@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f2eb">
+    <title>PairUp — Footwear Visual Search</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.js?crop-aware=2"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="#" aria-label="PairUp home"><span class="wordmark-icon">P</span> pairup</a>
+      <span class="header-note">A visual search studio for footwear</span>
+      <span class="status-pill"><span></span> PRIVATE BY DESIGN</span>
+    </header>
+
+    <main>
+      <section class="intro">
+        <p class="eyebrow">YOUR NEXT FAVORITE PAIR</p>
+        <h1>Find the pair.<br><span>Follow the feeling.</span></h1>
+        <p class="intro-copy">Drop in a shoe or sandal photo. We’ll look through your collection for pairs with a similar look.</p>
+      </section>
+
+      <section class="search-panel" aria-labelledby="search-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">01 / START WITH A PHOTO</p>
+            <h2 id="search-title">Show us what you’re looking for</h2>
+          </div>
+          <span class="step-number">01</span>
+        </div>
+
+        <div class="query-layout">
+          <div class="query-preview" id="query-preview">
+            <div class="preview-placeholder" id="preview-placeholder">
+              <span class="upload-mark" aria-hidden="true">↥</span>
+              <strong>Your photo goes here</strong>
+              <span>JPG, PNG, GIF or WEBP</span>
+            </div>
+            <img id="query-image" alt="Selected footwear search image" hidden>
+            <video id="camera-video" autoplay playsinline hidden></video>
+          </div>
+          <div class="query-actions">
+            <label class="button button-dark" for="query-file">Upload a photo <span aria-hidden="true">↗</span></label>
+            <input id="query-file" type="file" accept="image/*" hidden>
+            <button class="button button-light" id="camera-button" type="button">Use live camera <span aria-hidden="true">◉</span></button>
+            <button class="button button-dark" id="capture-button" type="button" hidden>Capture photo <span aria-hidden="true">↗</span></button>
+            <button class="text-button" id="clear-query" type="button" hidden>Remove photo</button>
+            <p class="fine-print">Your images stay in this browser session and are never uploaded.</p>
+            <p class="model-status" id="model-status" role="status" aria-live="polite">MobileCLIP loads on first use (about 12 MB). Internet is needed for the initial download.</p>
+          </div>
+        </div>
+
+        <div class="search-footer">
+          <label class="filter-label" for="category-filter">LOOKING FOR
+            <select id="category-filter">
+              <option value="all">Shoes &amp; sandals</option>
+              <option value="shoes">Shoes</option>
+              <option value="sandals">Sandals</option>
+            </select>
+          </label>
+          <button class="button button-accent" id="search-button" type="button" disabled>Find similar pairs <span aria-hidden="true">↗</span></button>
+        </div>
+        <p class="notice" id="search-notice" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="results-section" aria-labelledby="results-title">
+        <div class="section-heading results-heading">
+          <div>
+            <p class="eyebrow">02 / YOUR DISCOVERIES</p>
+            <h2 id="results-title">Pairs with a similar feel</h2>
+            <p class="section-copy">Scores combine whole-image and crop similarity; they are not probabilities.</p>
+          </div>
+          <span class="result-count" id="result-count">0 MATCHES</span>
+        </div>
+        <div class="results-grid" id="results-grid">
+          <div class="empty-state" id="results-empty">
+            <span class="empty-symbol" aria-hidden="true">✳</span>
+            <strong>Your next pair is one photo away</strong>
+            <span>Add footwear photos to your collection below, then search to see similar styles.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="catalog-section" aria-labelledby="catalog-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">03 / YOUR COLLECTION</p>
+            <h2 id="catalog-title">Build your footwear catalog</h2>
+            <p class="section-copy">Product photos stay saved in this browser on this device until you remove them.</p>
+          </div>
+          <span class="step-number">03</span>
+        </div>
+        <div class="catalog-toolbar">
+          <label class="filter-label" for="add-category">ADD AS
+            <select id="add-category">
+              <option value="shoes">Shoes</option>
+              <option value="sandals">Sandals</option>
+            </select>
+          </label>
+          <label class="button button-outline" for="catalog-files">Add product photos <span aria-hidden="true">＋</span></label>
+          <input id="catalog-files" type="file" accept="image/*" multiple hidden>
+          <label class="button button-outline" for="catalog-folder">Add a photo folder <span aria-hidden="true">↗</span></label>
+          <input id="catalog-folder" type="file" accept="image/*" webkitdirectory multiple hidden>
+          <span class="catalog-count" id="catalog-count">0 products</span>
+          <button class="text-button clear-catalog" id="clear-catalog" type="button" hidden>Clear collection</button>
+        </div>
+        <p class="section-copy import-hint">Choose a category before importing. Every photo in that batch uses the selected category; larger folders take longer because photos are analyzed one at a time.</p>
+        <div class="catalog-grid" id="catalog-grid">
+          <p class="catalog-empty" id="catalog-empty">Your collection is empty. Add a few footwear photos to get started.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>PAIRUP / VISUAL SEARCH CONCEPT</span>
+      <span>Similarities use pretrained visual embeddings, not exact product identity.</span>
+    </footer>
+  </body>
+</html>
