@@ -117,12 +117,25 @@ h1 span { color: var(--green); }
   line-height: 1.7;
 }
 
-.search-panel, .catalog-section {
+.search-panel, .catalog-section, .account-panel {
   padding: 34px 38px;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
+
+.account-panel { margin-bottom: 24px; }
+.account-copy { max-width: 720px; margin-bottom: 18px; }
+.account-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.account-form label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; }
+.account-form input { min-height: 42px; padding: 0 11px; border: 1px solid var(--line); border-radius: 3px; background: var(--white); font: inherit; }
+.account-actions, .signed-in { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; }
+.account-actions .button { min-width: 130px; }
+.account-notice { grid-column: 1 / -1; margin: 0; color: #9a4f3d; font-size: 11px; }
+.signed-in { margin-top: 15px; }
+.signed-in #account-email-label { margin: 0 auto 0 0; font-size: 12px; font-weight: 600; }
+.analysis-hint { flex-basis: 100%; margin: 0; }
+.analysis-mode { white-space: nowrap; }
 
 .section-heading {
   display: flex;
@@ -359,6 +372,8 @@ select {
 .clear-catalog { margin-left: 0; }
 .catalog-empty { grid-column: 1 / -1; margin: 0; padding: 27px 12px; border: 1px dashed #cbc9bf; color: var(--muted); font-size: 11px; text-align: center; }
 .catalog-grid .product-image-wrap { height: 145px; }
+.pagination { margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 16px; }
+.pagination span { color: var(--muted); font-size: 11px; }
 
 footer {
   padding: 21px max(6.5vw, 24px);
@@ -369,11 +384,15 @@ footer {
   font-size: 9px;
 }
 
+footer a { color: inherit; }
+
 @media (max-width: 700px) {
   .site-header { height: 64px; }
   .header-note { display: none; }
   .intro { margin: 53px auto 41px; }
-  .search-panel, .catalog-section { padding: 25px 20px; }
+  .search-panel, .catalog-section, .account-panel { padding: 25px 20px; }
+  .account-form { grid-template-columns: 1fr; }
+  .account-actions { align-items: flex-start; flex-direction: column; }
   .query-layout { grid-template-columns: 1fr; }
   .query-preview { min-height: 205px; }
   .query-actions { display: grid; grid-template-columns: 1fr 1fr; }

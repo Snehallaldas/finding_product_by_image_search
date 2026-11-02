@@ -1,0 +1,43 @@
+.benchmark-intro { margin-bottom: 42px; }
+.benchmark-panel, .benchmark-results {
+  margin-bottom: 28px;
+  padding: 34px 38px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.benchmark-panel h2, .benchmark-results h2 { margin-top: 0; }
+.benchmark-panel code, .benchmark-results code { font-size: .95em; }
+.benchmark-folder { margin-top: 20px; }
+.benchmark-dataset, .benchmark-status, .benchmark-warning {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.benchmark-status:empty { display: none; }
+.benchmark-status { color: var(--green); }
+.benchmark-warning { color: #8c563c; }
+.manifest-help { margin-top: 20px; color: var(--muted); font-size: 11px; }
+.manifest-help summary { color: var(--ink); cursor: pointer; font-weight: 600; }
+.manifest-help pre { overflow-x: auto; margin: 14px 0; padding: 16px; background: #f3f1ea; color: var(--ink); line-height: 1.6; }
+.benchmark-controls { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.benchmark-controls .button { min-width: 180px; justify-content: center; }
+.benchmark-results .section-heading { align-items: center; }
+.benchmark-table-wrap { margin-top: 22px; overflow-x: auto; }
+.benchmark-table-wrap table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; }
+.benchmark-table-wrap th, .benchmark-table-wrap td { padding: 11px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.benchmark-table-wrap th { color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.benchmark-query-results { margin-top: 27px; }
+.benchmark-query-results h3 { font-family: Georgia, serif; font-size: 19px; }
+.benchmark-query-results details { padding: 11px 0; border-top: 1px solid var(--line); font-size: 11px; }
+.benchmark-query-results summary { cursor: pointer; font-weight: 600; }
+.benchmark-query-results p { color: var(--muted); line-height: 1.6; }
+.benchmark-caveat { margin-top: 18px; }
+
+@media (max-width: 700px) {
+  .benchmark-panel, .benchmark-results { padding: 25px 20px; }
+  .benchmark-controls { align-items: stretch; flex-direction: column; }
+  .benchmark-controls .button { width: 100%; }
+  .benchmark-results .section-heading { align-items: flex-start; flex-direction: column; }
+}

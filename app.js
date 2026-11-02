@@ -1,8 +1,26 @@
-import { embedImage, EMBEDDING_VERSION } from "./image-embeddings.js?crop-aware=2";
-import { rankProducts } from "./visual-search.js?crop-aware=2";
-import { clearProducts, deleteProduct, loadProducts, saveProduct } from "./catalog-store.js";
+import { embedImage, EMBEDDING_VERSION } from "./image-embeddings.js?object-aware=1";
+import { loadProducts } from "./catalog-store.js";
+
+const CATALOG_PAGE_SIZE = 32;
+const RESULTS_PAGE_SIZE = 20;
 
 const elements = {
+  accountForm: document.querySelector("#account-form"),
+  accountEmail: document.querySelector("#account-email"),
+  accountPassword: document.querySelector("#account-password"),
+  accountSubmit: document.querySelector("#account-submit"),
+  accountMode: document.querySelector("#account-mode"),
+  accountNotice: document.querySelector("#account-notice"),
+  accountPanel: document.querySelector("#account-panel"),
+  accountTitle: document.querySelector("#account-title"),
+  signedIn: document.querySelector("#signed-in"),
+  accountEmailLabel: document.querySelector("#account-email-label"),
+  analysisMode: document.querySelector("#analysis-mode"),
+  signOut: document.querySelector("#sign-out"),
+  migrateCatalog: document.querySelector("#migrate-catalog"),
+  searchSection: document.querySelector("#search-section"),
+  resultsSection: document.querySelector("#results-section"),
+  catalogSection: document.querySelector("#catalog-section"),
   queryFile: document.querySelector("#query-file"),
   queryImage: document.querySelector("#query-image"),
   previewPlaceholder: document.querySelector("#preview-placeholder"),
@@ -17,6 +35,10 @@ const elements = {
   resultsGrid: document.querySelector("#results-grid"),
   resultsEmpty: document.querySelector("#results-empty"),
   resultCount: document.querySelector("#result-count"),
+  resultsPagination: document.querySelector("#results-pagination"),
+  resultsPrevious: document.querySelector("#results-previous"),
+  resultsNext: document.querySelector("#results-next"),
+  resultsPageLabel: document.querySelector("#results-page-label"),
   catalogFiles: document.querySelector("#catalog-files"),
   catalogFolder: document.querySelector("#catalog-folder"),
   addCategory: document.querySelector("#add-category"),
@@ -24,19 +46,30 @@ const elements = {
   catalogEmpty: document.querySelector("#catalog-empty"),
   catalogCount: document.querySelector("#catalog-count"),
   clearCatalog: document.querySelector("#clear-catalog"),
+  catalogPagination: document.querySelector("#catalog-pagination"),
+  catalogPrevious: document.querySelector("#catalog-previous"),
+  catalogNext: document.querySelector("#catalog-next"),
+  catalogPageLabel: document.querySelector("#catalog-page-label"),
 };
 
-const products = [];
+let products = [];
+let currentAccount = null;
 let queryEmbedding = null;
 let queryUrl = null;
 let cameraStream = null;
-let nextProductId = 1;
-let catalogReady = false;
+let catalogPage = 1;
+let catalogTotal = 0;
+let resultsPage = 1;
+let resultsTotal = 0;
 let catalogImporting = false;
 let searchInProgress = false;
+let accountMode = "login";
+let activeAnalysisMode = "fast";
 
-initializeCatalog();
-
+elements.accountForm.addEventListener("submit", authenticate);
+elements.accountMode.addEventListener("click", toggleAccountMode);
+elements.signOut.addEventListener("click", signOut);
+elements.migrateCatalog.addEventListener("click", migrateLocalCatalog);
 elements.queryFile.addEventListener("change", async (event) => {
   const input = event.currentTarget;
   const [file] = input.files;
@@ -48,11 +81,168 @@ elements.queryFile.addEventListener("change", async (event) => {
     input.disabled = false;
   }
 });
-
 elements.catalogFiles.addEventListener("change", (event) => addCatalogFiles(event.currentTarget));
 elements.catalogFolder.addEventListener("change", (event) => addCatalogFiles(event.currentTarget));
+elements.searchButton.addEventListener("click", () => searchCatalog(1));
+elements.analysisMode.addEventListener("change", reanalyzeQueryImage);
+elements.categoryFilter.addEventListener("change", () => {
+  if (queryEmbedding) searchCatalog(1);
+});
+elements.cameraButton.addEventListener("click", startCamera);
+elements.captureButton.addEventListener("click", captureCameraImage);
+elements.clearQuery.addEventListener("click", clearQuery);
+elements.clearCatalog.addEventListener("click", clearCatalog);
+elements.catalogPrevious.addEventListener("click", () => loadCatalog(catalogPage - 1));
+elements.catalogNext.addEventListener("click", () => loadCatalog(catalogPage + 1));
+elements.resultsPrevious.addEventListener("click", () => searchCatalog(resultsPage - 1));
+elements.resultsNext.addEventListener("click", () => searchCatalog(resultsPage + 1));
+
+initializeApp();
+
+async function initializeApp() {
+  try {
+    currentAccount = await api("/api/auth/me");
+    await showSignedIn();
+  } catch (error) {
+    if (error.status !== 401) {
+      elements.accountNotice.textContent = error.message;
+      console.error(error);
+    }
+    showSignedOut();
+  }
+  await updateLocalMigrationOption();
+}
+
+async function authenticate(event) {
+  event.preventDefault();
+  elements.accountSubmit.disabled = true;
+  elements.accountNotice.textContent = "";
+  try {
+    const endpoint = accountMode === "register" ? "/api/auth/register" : "/api/auth/login";
+    currentAccount = await api(endpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        email: elements.accountEmail.value,
+        password: elements.accountPassword.value,
+      }),
+    });
+    elements.accountPassword.value = "";
+    await showSignedIn();
+    await updateLocalMigrationOption();
+  } catch (error) {
+    elements.accountNotice.textContent = error.message;
+  } finally {
+    elements.accountSubmit.disabled = false;
+  }
+}
+
+function toggleAccountMode() {
+  accountMode = accountMode === "login" ? "register" : "login";
+  elements.accountTitle.textContent = accountMode === "register" ? "Create your account" : "Sign in to your catalog";
+  elements.accountSubmit.textContent = accountMode === "register" ? "Create account" : "Sign in";
+  elements.accountMode.textContent = accountMode === "register" ? "Already have an account? Sign in" : "Create an account";
+  elements.accountPassword.autocomplete = accountMode === "register" ? "new-password" : "current-password";
+  elements.accountNotice.textContent = "";
+}
+
+function showSignedOut() {
+  currentAccount = null;
+  elements.accountForm.hidden = false;
+  elements.signedIn.hidden = true;
+  elements.searchSection.hidden = true;
+  elements.resultsSection.hidden = true;
+  elements.catalogSection.hidden = true;
+}
+
+async function showSignedIn() {
+  elements.accountForm.hidden = true;
+  elements.signedIn.hidden = false;
+  elements.accountEmailLabel.textContent = `Signed in as ${currentAccount.email}`;
+  elements.searchSection.hidden = false;
+  elements.resultsSection.hidden = false;
+  elements.catalogSection.hidden = false;
+  showNotice("");
+  await loadCatalog(1);
+}
+
+async function signOut() {
+  elements.signOut.disabled = true;
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+    clearQuery();
+    products = [];
+    catalogTotal = 0;
+    renderCatalog();
+    showSignedOut();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    elements.signOut.disabled = false;
+  }
+}
+
+async function updateLocalMigrationOption() {
+  try {
+    const localProducts = await loadProducts();
+    elements.migrateCatalog.hidden = !currentAccount || localProducts.length === 0;
+    if (localProducts.length) {
+      elements.migrateCatalog.textContent = `Import ${localProducts.length} previous browser photos into this account`;
+    }
+  } catch (error) {
+    elements.migrateCatalog.hidden = true;
+    console.error(error);
+  }
+}
+
+async function migrateLocalCatalog() {
+  elements.migrateCatalog.disabled = true;
+  elements.analysisMode.disabled = true;
+  try {
+    const localProducts = await loadProducts();
+    let imported = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const [index, product] of localProducts.entries()) {
+      let imageUrl;
+      try {
+        const existing = await api(`/api/products/check?content_hash=${await hashFile(product.blob)}`);
+        if (existing.exists) {
+          skipped += 1;
+          continue;
+        }
+        let embedding = product.embedding;
+        if (embedding?.version !== EMBEDDING_VERSION) {
+          imageUrl = URL.createObjectURL(product.blob);
+          embedding = await analyzeImage(imageUrl, (message) => {
+            updateModelStatus(`Preparing saved photo ${index + 1} of ${localProducts.length}: ${message}`);
+          });
+        }
+        await uploadProduct(product.blob, product.name, product.category, embedding);
+        imported += 1;
+        updateModelStatus(`Imported ${index + 1} of ${localProducts.length} saved photos.`);
+      } catch (error) {
+        failed += 1;
+        console.error(error);
+      } finally {
+        if (imageUrl) URL.revokeObjectURL(imageUrl);
+      }
+    }
+    await loadCatalog(1);
+    showNotice(failed
+      ? `Imported ${imported}; skipped ${skipped} already saved; ${failed} failed. Your browser copy is still intact.`
+      : `Imported ${imported}; skipped ${skipped} already saved. Your original browser copy is still intact.`);
+    await updateLocalMigrationOption();
+  } catch (error) {
+    showNotice(`Could not import the previous collection: ${error.message}`);
+    console.error(error);
+  } finally {
+    elements.migrateCatalog.disabled = false;
+    elements.analysisMode.disabled = false;
+  }
+}
 
 async function addCatalogFiles(input) {
+  if (!currentAccount) return;
   const selectedFiles = [...input.files];
   const files = selectedFiles.filter((file) => file.type.startsWith("image/"));
   if (!files.length) {
@@ -65,109 +255,101 @@ async function addCatalogFiles(input) {
   showNotice("");
   const category = elements.addCategory.value;
   catalogImporting = true;
+  elements.analysisMode.disabled = true;
   input.disabled = true;
   elements.clearCatalog.disabled = true;
   elements.catalogFiles.disabled = true;
   elements.catalogFolder.disabled = true;
   let added = 0;
+  let skipped = 0;
   let failed = 0;
   try {
     for (const [index, file] of files.entries()) {
-      let image;
+      let imageUrl;
       try {
-        image = await loadImage(file);
-      } catch (error) {
-        failed += 1;
-        showNotice(`Could not read "${file.name}". Continuing with the next photo.`);
-        console.error(error);
-        continue;
-      }
-
-      const id = nextProductId++;
-      const name = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
-      try {
+        const checksum = await hashFile(file);
+        const existing = await api(`/api/products/check?content_hash=${checksum}`);
+        if (existing.exists) {
+          skipped += 1;
+          updateModelStatus(`Skipping already indexed photo ${index + 1} of ${files.length}: ${file.name}`);
+          continue;
+        }
+        imageUrl = URL.createObjectURL(file);
+        const name = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
         updateModelStatus(`Analyzing photo ${index + 1} of ${files.length}: ${file.name}`);
-        const embedding = await embedImage(image.url, (message) => {
+        const embedding = await analyzeImage(imageUrl, (message) => {
           updateModelStatus(`Photo ${index + 1} of ${files.length}: ${message}`);
         });
-        const product = {
-          id,
-          name,
-          category,
-          relativePath: file.webkitRelativePath || file.name,
-          blob: file,
-          embedding,
-        };
-        await saveProduct(product);
-        products.push({ ...product, url: image.url });
+        await uploadProduct(file, name, category, embedding);
         added += 1;
-        renderCatalog();
       } catch (error) {
         failed += 1;
-        URL.revokeObjectURL(image.url);
         showNotice(`Could not add "${file.name}". Continuing with the next photo.`);
-        updateModelStatus("The product was not added because model analysis or local storage failed.");
         console.error(error);
+      } finally {
+        if (imageUrl) URL.revokeObjectURL(imageUrl);
       }
     }
-    if (failed > 0) {
-      showNotice(`Added ${added} of ${files.length} photos. ${failed} could not be added; check the browser console for details.`);
-    } else {
-      showNotice(`Added ${added} ${added === 1 ? "photo" : "photos"} to your saved catalog.`);
-    }
-    updateModelStatus(`${added} ${added === 1 ? "photo" : "photos"} saved on this device.`);
+    await loadCatalog(1);
+    showNotice(failed
+      ? `Added ${added}; skipped ${skipped} already indexed; ${failed} could not be uploaded. Check the browser console for details.`
+      : `Added ${added}; skipped ${skipped} already indexed in your private catalog.`);
+    updateModelStatus(`${added} new ${added === 1 ? "photo" : "photos"} uploaded to your account.`);
   } finally {
     input.value = "";
     input.disabled = false;
     catalogImporting = false;
-    elements.catalogFiles.disabled = !catalogReady;
-    elements.catalogFolder.disabled = !catalogReady;
+    elements.analysisMode.disabled = false;
+    elements.catalogFiles.disabled = false;
+    elements.catalogFolder.disabled = false;
     renderCatalog();
   }
 }
 
-elements.searchButton.addEventListener("click", searchCatalog);
+async function uploadProduct(file, name, category, embedding) {
+  const form = new FormData();
+  form.append("image", file, file.name || `${name}.jpg`);
+  form.append("name", name);
+  form.append("category", category);
+  form.append("embedding", JSON.stringify(serializeEmbedding(embedding)));
+  return api("/api/products", { method: "POST", body: form });
+}
 
-elements.categoryFilter.addEventListener("change", () => {
-  if (queryEmbedding) searchCatalog();
-});
+async function hashFile(file) {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
-elements.cameraButton.addEventListener("click", startCamera);
-elements.captureButton.addEventListener("click", captureCameraImage);
-elements.clearQuery.addEventListener("click", clearQuery);
-elements.clearCatalog.addEventListener("click", clearCatalog);
+function serializeEmbedding(embedding) {
+  if (ArrayBuffer.isView(embedding)) return Array.from(embedding);
+  return {
+    ...embedding,
+    vectors: embedding.vectors.map((vector) => Array.from(vector)),
+    objectVectors: (embedding.objectVectors ?? []).map((vector) => Array.from(vector)),
+  };
+}
 
-async function searchCatalog() {
-  if (!queryEmbedding || searchInProgress) return;
+async function searchCatalog(page) {
+  if (!queryEmbedding || !currentAccount || searchInProgress) return;
   searchInProgress = true;
   elements.searchButton.disabled = true;
   try {
-    const oldProducts = products.filter((product) => product.embedding?.version !== EMBEDDING_VERSION);
-    for (const [index, product] of oldProducts.entries()) {
-      updateModelStatus(`Improving saved image ${index + 1} of ${oldProducts.length}: ${product.name}`);
-      const embedding = await embedImage(product.url, (message) => {
-        updateModelStatus(`Saved image ${index + 1} of ${oldProducts.length}: ${message}`);
-      });
-        await saveProduct({
-          id: product.id,
-          name: product.name,
-          category: product.category,
-          relativePath: product.relativePath,
-          blob: product.blob,
-          embedding,
-        });
-      product.embedding = embedding;
-    }
-
-    const ranked = rankProducts(queryEmbedding, products, elements.categoryFilter.value);
-    renderResults(ranked);
-    showNotice(ranked.length ? "" : "No products are available for this category yet. Add photos or switch categories.");
-    if (oldProducts.length) {
-      updateModelStatus(`Updated ${oldProducts.length} saved photos for crop-aware visual search.`);
-    }
+    const response = await api("/api/search", {
+      method: "POST",
+      body: JSON.stringify({
+        embedding: serializeEmbedding(queryEmbedding),
+        category: elements.categoryFilter.value,
+        page,
+        page_size: RESULTS_PAGE_SIZE,
+      }),
+    });
+    resultsPage = response.page;
+    resultsTotal = response.total;
+    renderResults(response.products);
+    showNotice(response.total ? "" : "No products are available for this category yet. Add photos or switch categories.");
+    updateModelStatus(`Found ${response.total.toLocaleString()} products in your private catalog.`);
   } catch (error) {
-    showNotice("Could not complete the improved visual search. Your saved catalog was not removed; try again.");
-    updateModelStatus("Image analysis or local storage failed. Check your connection and browser storage.");
+    showNotice(`Could not search your private catalog: ${error.message}`);
     console.error(error);
   } finally {
     searchInProgress = false;
@@ -190,26 +372,56 @@ async function setQueryImage(file) {
     return;
   }
   try {
-    const embedding = await embedImage(image.url, updateModelStatus);
+    elements.analysisMode.disabled = true;
+    const selectedMode = elements.analysisMode.value;
+    const embedding = await analyzeImage(image.url, updateModelStatus);
     revokeQueryUrl();
     queryUrl = image.url;
     queryEmbedding = embedding;
+    activeAnalysisMode = selectedMode;
     elements.queryImage.src = queryUrl;
     elements.queryImage.hidden = false;
     elements.previewPlaceholder.hidden = true;
     elements.searchButton.disabled = false;
     elements.clearQuery.hidden = false;
     elements.searchNotice.textContent = "";
-    elements.resultsGrid.replaceChildren();
-    elements.resultsGrid.append(elements.resultsEmpty);
-    elements.resultsEmpty.hidden = false;
-    elements.resultCount.textContent = "0 MATCHES";
+    resultsPage = 1;
+    resultsTotal = 0;
+    renderResults([]);
   } catch (error) {
     URL.revokeObjectURL(image.url);
     showNotice("We couldn’t analyze that image. Check your connection and try again.");
     updateModelStatus("AI model could not process that image. Check the browser console for details.");
     console.error(error);
+  } finally {
+    elements.analysisMode.disabled = false;
   }
+}
+
+async function reanalyzeQueryImage() {
+  if (!queryUrl || catalogImporting || !queryEmbedding) return;
+  const previousMode = activeAnalysisMode;
+  elements.analysisMode.disabled = true;
+  elements.searchButton.disabled = true;
+  try {
+    queryEmbedding = await analyzeImage(queryUrl, updateModelStatus);
+    activeAnalysisMode = elements.analysisMode.value;
+    resultsPage = 1;
+    await searchCatalog(1);
+  } catch (error) {
+    elements.analysisMode.value = previousMode;
+    showNotice(`Could not change image analysis mode: ${error.message}`);
+    console.error(error);
+  } finally {
+    elements.analysisMode.disabled = false;
+    elements.searchButton.disabled = !queryEmbedding;
+  }
+}
+
+function analyzeImage(imageUrl, onProgress) {
+  return embedImage(imageUrl, onProgress, {
+    detailed: elements.analysisMode.value === "detailed",
+  });
 }
 
 async function loadImage(file) {
@@ -268,21 +480,29 @@ async function captureCameraImage() {
   }
   const url = URL.createObjectURL(blob);
   try {
-    const embedding = await embedImage(url, updateModelStatus);
+    elements.analysisMode.disabled = true;
+    const selectedMode = elements.analysisMode.value;
+    const embedding = await analyzeImage(url, updateModelStatus);
     revokeQueryUrl();
     queryUrl = url;
     queryEmbedding = embedding;
+    activeAnalysisMode = selectedMode;
     elements.queryImage.src = queryUrl;
     elements.queryImage.hidden = false;
     stopCamera();
     elements.previewPlaceholder.hidden = true;
     elements.searchButton.disabled = false;
     showNotice("");
+    resultsPage = 1;
+    resultsTotal = 0;
+    renderResults([]);
   } catch (error) {
     URL.revokeObjectURL(url);
     showNotice("We couldn’t analyze that camera photo. Check your connection and try again.");
     updateModelStatus("AI model could not process that image. Check the browser console for details.");
     console.error(error);
+  } finally {
+    elements.analysisMode.disabled = false;
   }
 }
 
@@ -297,10 +517,9 @@ function clearQuery() {
   elements.clearQuery.hidden = true;
   elements.cameraButton.hidden = false;
   elements.captureButton.hidden = true;
-  elements.resultsGrid.replaceChildren();
-  elements.resultsGrid.append(elements.resultsEmpty);
-  elements.resultsEmpty.hidden = false;
-  elements.resultCount.textContent = "0 MATCHES";
+  resultsPage = 1;
+  resultsTotal = 0;
+  renderResults([]);
   showNotice("");
 }
 
@@ -323,52 +542,62 @@ function revokeQueryUrl() {
 async function clearCatalog() {
   elements.clearCatalog.disabled = true;
   try {
-    await clearProducts();
+    const response = await api("/api/products", { method: "DELETE" });
+    catalogTotal = 0;
+    catalogPage = 1;
+    products = [];
+    renderCatalog();
+    renderResults([]);
+    showNotice(`Removed ${response.deleted} products from your private catalog.`);
   } catch (error) {
-    showNotice("Could not clear the saved catalog. Check browser storage and try again.");
+    showNotice(`Could not clear the catalog: ${error.message}`);
     console.error(error);
-    return;
   } finally {
     elements.clearCatalog.disabled = false;
   }
-  for (const product of products) URL.revokeObjectURL(product.url);
-  products.length = 0;
+}
+
+async function loadCatalog(page) {
+  const response = await api(`/api/products?page=${page}&page_size=${CATALOG_PAGE_SIZE}`);
+  catalogPage = response.page;
+  catalogTotal = response.total;
+  products = response.products;
   renderCatalog();
-  elements.resultsGrid.replaceChildren();
-  elements.resultsGrid.append(elements.resultsEmpty);
-  elements.resultsEmpty.hidden = false;
-  elements.resultCount.textContent = "0 MATCHES";
 }
 
 function renderCatalog() {
   elements.catalogGrid.replaceChildren();
-  elements.catalogEmpty.hidden = products.length > 0;
-  elements.clearCatalog.hidden = products.length === 0;
-  elements.clearCatalog.disabled = !catalogReady || products.length === 0 || catalogImporting;
-  elements.catalogCount.textContent = catalogReady
-    ? `${products.length} ${products.length === 1 ? "product" : "products"} saved on this device`
-    : "Loading saved products…";
-  if (!products.length) {
+  elements.catalogEmpty.hidden = catalogTotal > 0;
+  elements.clearCatalog.hidden = catalogTotal === 0;
+  elements.clearCatalog.disabled = catalogTotal === 0 || catalogImporting;
+  elements.catalogCount.textContent = `${catalogTotal.toLocaleString()} ${catalogTotal === 1 ? "product" : "products"} in your private catalog`;
+  if (!catalogTotal) {
     elements.catalogGrid.append(elements.catalogEmpty);
-    return;
+  } else {
+    products.forEach((product) => elements.catalogGrid.append(createProductCard(product, false)));
   }
-  for (const product of products) {
-    elements.catalogGrid.append(createProductCard(product, false));
-  }
+  renderPagination(elements.catalogPagination, elements.catalogPageLabel, elements.catalogPrevious, elements.catalogNext, catalogPage, catalogTotal, CATALOG_PAGE_SIZE);
 }
 
 function renderResults(ranked) {
   elements.resultsGrid.replaceChildren();
-  elements.resultCount.textContent = `${ranked.length} ${ranked.length === 1 ? "MATCH" : "MATCHES"}`;
+  elements.resultCount.textContent = `${resultsTotal.toLocaleString()} ${resultsTotal === 1 ? "MATCH" : "MATCHES"}`;
   if (!ranked.length) {
     elements.resultsGrid.append(elements.resultsEmpty);
     elements.resultsEmpty.hidden = false;
-    return;
+  } else {
+    elements.resultsEmpty.hidden = true;
+    ranked.forEach((product) => elements.resultsGrid.append(createProductCard(product, true)));
   }
-  elements.resultsEmpty.hidden = true;
-  for (const product of ranked) {
-    elements.resultsGrid.append(createProductCard(product, true));
-  }
+  renderPagination(elements.resultsPagination, elements.resultsPageLabel, elements.resultsPrevious, elements.resultsNext, resultsPage, resultsTotal, RESULTS_PAGE_SIZE);
+}
+
+function renderPagination(container, label, previous, next, page, total, pageSize) {
+  const pageCount = Math.ceil(total / pageSize);
+  container.hidden = pageCount <= 1;
+  label.textContent = `Page ${page} of ${pageCount.toLocaleString()}`;
+  previous.disabled = page <= 1;
+  next.disabled = page >= pageCount;
 }
 
 function createProductCard(product, showScore) {
@@ -377,7 +606,7 @@ function createProductCard(product, showScore) {
   const imageWrap = document.createElement("div");
   imageWrap.className = "product-image-wrap";
   const image = document.createElement("img");
-  image.src = product.url;
+  image.src = product.imageUrl;
   image.alt = product.name;
   image.loading = "lazy";
   imageWrap.append(image);
@@ -411,19 +640,30 @@ function createProductCard(product, showScore) {
 }
 
 async function removeProduct(id) {
-  const index = products.findIndex((product) => product.id === id);
-  if (index < 0) return;
   try {
-    await deleteProduct(id);
+    await api(`/api/products/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const remaining = Math.max(0, catalogTotal - 1);
+    const targetPage = Math.min(catalogPage, Math.max(1, Math.ceil(remaining / CATALOG_PAGE_SIZE)));
+    await loadCatalog(targetPage);
+    if (queryEmbedding) await searchCatalog(resultsPage);
   } catch (error) {
-    showNotice("Could not remove the saved product. Check browser storage and try again.");
+    showNotice(`Could not remove the product: ${error.message}`);
     console.error(error);
-    return;
   }
-  URL.revokeObjectURL(products[index].url);
-  products.splice(index, 1);
-  renderCatalog();
-  if (queryEmbedding) searchCatalog();
+}
+
+async function api(url, options = {}) {
+  const headers = new Headers(options.headers ?? {});
+  if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+  const response = await fetch(url, { ...options, headers, credentials: "same-origin" });
+  const contentType = response.headers.get("content-type") ?? "";
+  const body = contentType.includes("application/json") ? await response.json() : null;
+  if (!response.ok) {
+    const error = new Error(body?.detail ?? `Request failed (${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
+  return body;
 }
 
 function showNotice(message) {
@@ -432,31 +672,4 @@ function showNotice(message) {
 
 function updateModelStatus(message) {
   elements.modelStatus.textContent = message;
-}
-
-async function initializeCatalog() {
-  elements.catalogFiles.disabled = true;
-  elements.catalogFolder.disabled = true;
-  elements.clearCatalog.disabled = true;
-  elements.catalogCount.textContent = "Loading saved products…";
-  try {
-    const savedProducts = await loadProducts();
-    for (const product of savedProducts) {
-      if (!(product.blob instanceof Blob) || !product.embedding) {
-        throw new Error(`Saved product ${product.id} is missing its image or embedding.`);
-      }
-      products.push({ ...product, url: URL.createObjectURL(product.blob) });
-      nextProductId = Math.max(nextProductId, product.id + 1);
-    }
-    catalogReady = true;
-    renderCatalog();
-  } catch (error) {
-    showNotice("Could not load the saved catalog. Your saved images were not changed.");
-    elements.catalogCount.textContent = "Saved catalog could not be loaded";
-    console.error(error);
-  } finally {
-    elements.catalogFiles.disabled = !catalogReady;
-    elements.catalogFolder.disabled = !catalogReady;
-    elements.clearCatalog.disabled = !catalogReady || products.length === 0;
-  }
 }

@@ -6,13 +6,13 @@
     <meta name="theme-color" content="#f5f2eb">
     <title>PairUp — Footwear Visual Search</title>
     <link rel="stylesheet" href="styles.css">
-    <script type="module" src="app.js?crop-aware=2"></script>
+    <script type="module" src="app.js?accounts=1"></script>
   </head>
   <body>
     <header class="site-header">
       <a class="wordmark" href="#" aria-label="PairUp home"><span class="wordmark-icon">P</span> pairup</a>
       <span class="header-note">A visual search studio for footwear</span>
-      <span class="status-pill"><span></span> PRIVATE BY DESIGN</span>
+      <span class="status-pill"><span></span> PRIVATE CATALOGS</span>
     </header>
 
     <main>
@@ -22,7 +22,42 @@
         <p class="intro-copy">Drop in a shoe or sandal photo. We’ll look through your collection for pairs with a similar look.</p>
       </section>
 
-      <section class="search-panel" aria-labelledby="search-title">
+      <section class="account-panel" aria-labelledby="account-title" id="account-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">YOUR PRIVATE SPACE</p>
+            <h2 id="account-title">Sign in to your catalog</h2>
+          </div>
+        </div>
+        <p class="section-copy account-copy">Create an account to keep your catalog private to you. Catalog photos are uploaded to the site and stored with your account. Search photos stay in your browser; only their image embeddings are sent to find matches.</p>
+        <form id="account-form" class="account-form">
+          <label>Email
+            <input id="account-email" name="email" type="email" autocomplete="email" required maxlength="254">
+          </label>
+          <label>Password (at least 12 characters)
+            <input id="account-password" name="password" type="password" autocomplete="current-password" required minlength="12" maxlength="256">
+          </label>
+          <div class="account-actions">
+            <button class="button button-dark" id="account-submit" type="submit">Sign in</button>
+            <button class="text-button" id="account-mode" type="button">Create an account</button>
+          </div>
+          <p class="account-notice" id="account-notice" role="status" aria-live="polite"></p>
+        </form>
+        <div id="signed-in" class="signed-in" hidden>
+          <p id="account-email-label"></p>
+          <label class="filter-label analysis-mode" for="analysis-mode">IMAGE ANALYSIS
+            <select id="analysis-mode">
+              <option value="fast">Fast (recommended)</option>
+              <option value="detailed">Detailed footwear detection (slower)</option>
+            </select>
+          </label>
+          <button class="text-button" id="migrate-catalog" type="button" hidden>Import previous browser collection</button>
+          <button class="text-button" id="sign-out" type="button">Sign out</button>
+          <p class="fine-print analysis-hint">Fast mode compares the full image and one centered crop. Detailed mode adds more crops and downloads the 127 MB detector the first time; the setting applies to searches and catalog imports.</p>
+        </div>
+      </section>
+
+      <section class="search-panel" aria-labelledby="search-title" id="search-section" hidden>
         <div class="section-heading">
           <div>
             <p class="eyebrow">01 / START WITH A PHOTO</p>
@@ -47,8 +82,8 @@
             <button class="button button-light" id="camera-button" type="button">Use live camera <span aria-hidden="true">◉</span></button>
             <button class="button button-dark" id="capture-button" type="button" hidden>Capture photo <span aria-hidden="true">↗</span></button>
             <button class="text-button" id="clear-query" type="button" hidden>Remove photo</button>
-            <p class="fine-print">Your images stay in this browser session and are never uploaded.</p>
-            <p class="model-status" id="model-status" role="status" aria-live="polite">MobileCLIP loads on first use (about 12 MB). Internet is needed for the initial download.</p>
+            <p class="fine-print">The search photo stays in your browser. Its embedding is sent to your private catalog for matching.</p>
+            <p class="model-status" id="model-status" role="status" aria-live="polite">Fast mode loads MobileCLIP on first use (about 12 MB). Internet is needed for the initial download.</p>
           </div>
         </div>
 
@@ -65,12 +100,12 @@
         <p class="notice" id="search-notice" role="status" aria-live="polite"></p>
       </section>
 
-      <section class="results-section" aria-labelledby="results-title">
+      <section class="results-section" aria-labelledby="results-title" id="results-section" hidden>
         <div class="section-heading results-heading">
           <div>
             <p class="eyebrow">02 / YOUR DISCOVERIES</p>
             <h2 id="results-title">Pairs with a similar feel</h2>
-            <p class="section-copy">Scores combine whole-image and crop similarity; they are not probabilities.</p>
+            <p class="section-copy">When footwear is detected, scores compare footwear-focused crops; otherwise they use whole-image and crop similarity. Scores are not probabilities.</p>
           </div>
           <span class="result-count" id="result-count">0 MATCHES</span>
         </div>
@@ -81,14 +116,19 @@
             <span>Add footwear photos to your collection below, then search to see similar styles.</span>
           </div>
         </div>
+        <nav class="pagination" id="results-pagination" aria-label="Search results pages" hidden>
+          <button class="button button-outline" id="results-previous" type="button">Previous</button>
+          <span id="results-page-label"></span>
+          <button class="button button-outline" id="results-next" type="button">Next</button>
+        </nav>
       </section>
 
-      <section class="catalog-section" aria-labelledby="catalog-title">
+      <section class="catalog-section" aria-labelledby="catalog-title" id="catalog-section" hidden>
         <div class="section-heading">
           <div>
             <p class="eyebrow">03 / YOUR COLLECTION</p>
             <h2 id="catalog-title">Build your footwear catalog</h2>
-            <p class="section-copy">Product photos stay saved in this browser on this device until you remove them.</p>
+            <p class="section-copy">Your catalog photos and embeddings are saved privately with your account.</p>
           </div>
           <span class="step-number">03</span>
         </div>
@@ -106,16 +146,21 @@
           <span class="catalog-count" id="catalog-count">0 products</span>
           <button class="text-button clear-catalog" id="clear-catalog" type="button" hidden>Clear collection</button>
         </div>
-        <p class="section-copy import-hint">Choose a category before importing. Every photo in that batch uses the selected category; larger folders take longer because photos are analyzed one at a time.</p>
+        <p class="section-copy import-hint">Choose a category before importing. Images are analyzed in this browser using the selected image-analysis mode, then uploaded one at a time. Large folders still take time; keep this tab open while they are processed.</p>
         <div class="catalog-grid" id="catalog-grid">
           <p class="catalog-empty" id="catalog-empty">Your collection is empty. Add a few footwear photos to get started.</p>
         </div>
+        <nav class="pagination" id="catalog-pagination" aria-label="Catalog pages" hidden>
+          <button class="button button-outline" id="catalog-previous" type="button">Previous</button>
+          <span id="catalog-page-label"></span>
+          <button class="button button-outline" id="catalog-next" type="button">Next</button>
+        </nav>
       </section>
     </main>
 
     <footer>
       <span>PAIRUP / VISUAL SEARCH CONCEPT</span>
-      <span>Similarities use pretrained visual embeddings, not exact product identity.</span>
+      <span>Your catalog is private to your account. Similarities are not exact product identity. <a href="/benchmark.html">Evaluate retrieval</a></span>
     </footer>
   </body>
 </html>

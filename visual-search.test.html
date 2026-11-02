@@ -10,7 +10,8 @@
       li { margin: .4rem 0; }
     </style>
     <script type="module">
-      import { normalizeEmbedding, rankProducts, similarity } from "./visual-search.js?crop-aware=2";
+      import { normalizeEmbedding, rankProducts, retrievalMetrics, similarity } from "./visual-search.js?object-aware=1";
+      import { selectFootwearDetections } from "./image-embeddings.js?object-aware=1";
 
       const results = document.querySelector("#results");
       const tests = [];
@@ -31,7 +32,7 @@
       const orthogonal = normalizeEmbedding([0, 0, 1]);
       const globalFeature = normalizeEmbedding([1, 0, 0]);
       const cropFeature = normalizeEmbedding([0, 1, 0]);
-      const composedQuery = { version: 2, vectors: [globalFeature, cropFeature] };
+      const composedQuery = { version: 3, vectors: [globalFeature, cropFeature], objectVectors: [cropFeature] };
       const sameItemDifferentComposition = { version: 2, vectors: [orthogonal, cropFeature] };
       const differentItem = { version: 2, vectors: [globalFeature, orthogonal] };
 
@@ -50,6 +51,31 @@
           { name: "Similar shoe", category: "shoes", embedding: same },
         ], "shoes");
         assert(ranked.length === 1 && ranked[0].name === "Similar shoe", "Expected only the best shoes result.");
+      });
+      test("retrieval metrics reward relevant matches near the top", () => {
+        const metrics = retrievalMetrics(["shoe-a", "other", "shoe-b"], ["shoe-a", "shoe-b"], 3);
+        assert(Math.abs(metrics.recallAtK - 1) < 0.0001, "Recall@K should count both relevant products.");
+        assert(Math.abs(metrics.averagePrecisionAtK - (5 / 6)) < 0.0001, "AP@K should reward the earlier relevant result.");
+      });
+      test("retrieval metrics report misses against all labeled positives", () => {
+        const metrics = retrievalMetrics(["other", "shoe-a", "other-2"], ["shoe-a", "shoe-b"], 3);
+        assert(Math.abs(metrics.recallAtK - 0.5) < 0.0001, "Recall@K should include relevant products missing from the result.");
+        assert(Math.abs(metrics.averagePrecisionAtK - 0.25) < 0.0001, "AP@K should use the labeled positive count as its denominator.");
+      });
+      test("retrieval metrics reject empty ground truth and invalid cutoffs", () => {
+        let emptyRejected = false;
+        let cutoffRejected = false;
+        try {
+          retrievalMetrics(["shoe-a"], [], 1);
+        } catch (error) {
+          emptyRejected = error instanceof TypeError;
+        }
+        try {
+          retrievalMetrics(["shoe-a"], ["shoe-a"], 0);
+        } catch (error) {
+          cutoffRejected = error instanceof RangeError;
+        }
+        assert(emptyRejected && cutoffRejected, "Invalid benchmark labels and cutoffs should be rejected.");
       });
       test("invalid and zero-length embeddings are rejected", () => {
         let rejected = false;
@@ -81,6 +107,39 @@
           { name: "Legacy match", category: "shoes", embedding: same },
         ]);
         assert(ranked[0].name === "Legacy match" && Math.abs(ranked[0].score - 1) < 0.0001, "Legacy vectors should remain searchable.");
+      });
+      test("detected footwear crops take priority over composition-sensitive whole-image scores", () => {
+        const objectMatch = { version: 3, vectors: [orthogonal], objectVectors: [cropFeature] };
+        const objectMismatch = { version: 3, vectors: [globalFeature], objectVectors: [orthogonal] };
+        const ranked = rankProducts(composedQuery, [
+          { name: "Different footwear", category: "sandals", embedding: objectMismatch },
+          { name: "Same footwear, different composition", category: "sandals", embedding: objectMatch },
+        ]);
+        assert(ranked[0].name === "Same footwear, different composition", "Matching detected-object crops should rank first.");
+        assert(Math.abs(ranked[0].score - 1) < 0.0001, "The detected-object score should use the crop-to-crop cosine.");
+      });
+      test("missing detected crops retain crop-aware matching", () => {
+        const noDetection = { version: 3, vectors: [orthogonal, cropFeature], objectVectors: [] };
+        assert(similarity(composedQuery, noDetection) > similarity(composedQuery, differentItem), "Images without detections should use the existing crop score.");
+      });
+      test("footwear detection filters overlapping boxes and limits crop count", () => {
+        const selected = selectFootwearDetections([
+          { score: 0.4, box: { xmin: 0, ymin: 0, xmax: 100, ymax: 100 } },
+          { score: 0.3, box: { xmin: 2, ymin: 2, xmax: 98, ymax: 98 } },
+          { score: 0.2, box: { xmin: 120, ymin: 10, xmax: 180, ymax: 80 } },
+          { score: 0.05, box: { xmin: 200, ymin: 0, xmax: 240, ymax: 50 } },
+        ]);
+        assert(selected.length === 2, "Expected two non-overlapping detections above the threshold.");
+        assert(selected[0].score === 0.4 && selected[1].score === 0.2, "Expected detections ranked by score with duplicate boxes removed.");
+      });
+      test("version 3 embeddings reject missing detected-object vectors", () => {
+        let rejected = false;
+        try {
+          similarity({ version: 3, vectors: [first] }, { version: 3, vectors: [same], objectVectors: [] });
+        } catch (error) {
+          rejected = error instanceof TypeError;
+        }
+        assert(rejected, "Malformed object-aware embeddings should not silently use generic crops.");
       });
 
       results.replaceChildren(...tests.map((result) => {

@@ -2,7 +2,7 @@
 
 ## Product goal
 
-Build a portfolio-ready web app that finds visually similar shoes and sandals from a user-provided product catalog using an uploaded photo or a live camera capture. Keep user images local to the browser unless a later, explicit product decision changes that privacy model.
+Build a portfolio-ready web app that finds visually similar shoes and sandals from a user's private catalog using an uploaded photo or live camera capture. Query photos stay in the browser; catalog photos are stored on the server in per-account private storage.
 
 ## Checkpoints
 
@@ -10,7 +10,7 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 
 - [x] Create a responsive, accessible search experience for footwear.
 - [x] Let users add, remove, and clear shoe and sandal photos in a local catalog.
-- [x] Keep catalog photos and embeddings saved locally after a page refresh.
+- [x] Keep the original browser-only catalog saved locally after a page refresh.
 - [x] Import multiple images from a folder into the local catalog.
 - [x] Let users search with an uploaded image and rank the catalog by visual similarity.
 - [x] Let users capture a query photo using a live camera.
@@ -23,10 +23,23 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 - [x] Replace handcrafted color-and-edge features with pretrained MobileCLIP-S0 image embeddings for catalog and query photos.
 - [x] Add visible model download/inference status and avoid silent heuristic fallback.
 - [x] Compare whole-image and overlapping crop embeddings to reduce sensitivity to product count and placement.
-- [ ] Assemble a legally usable, labeled footwear catalog with varied shoes and sandals.
-- [ ] Define a repeatable query set with different views, backgrounds, and lighting.
-- [ ] Measure Recall@K and search latency; record a baseline in the project documentation.
+- [x] Add fast-by-default analysis, optional detailed OWL-ViT footwear detections, and WebGPU acceleration with CPU fallback.
+- [x] Add MobileCLIP object-crop embeddings for detector-focused matching when detailed analysis is selected.
+- [x] Build a browser-local labeled retrieval benchmark that compares Fast and Detailed modes and exports metrics and latency.
+- [ ] Validate detector-focused matching on a broader labeled footwear query set; the initial six-photo S1 experiment moved the matching photo from 5th to 2nd.
+- [x] Assemble an initial legally usable, labeled footwear catalog with shoes and sandals.
+- [ ] Create and label a broader repeatable query set with real-world photos, varied backgrounds, and lighting; the current ABO queries are seller alternate views only.
+- [x] Measure Recall@K and search latency on the initial ABO set and record the baseline in the project documentation.
 - [ ] Compare candidate embedding models based on measured quality, runtime, and deployment constraints.
+
+### Private backend and catalog scale
+
+- [x] Add per-account registration, sign-in, and private catalog APIs.
+- [x] Store catalog photos and embeddings on the server and restrict API/image access to the owning account.
+- [x] Add paginated catalog and search results with exact vector scoring for catalogs up to 10,000 items.
+- [x] Save each completed import immediately and skip previously uploaded files on re-import.
+- [ ] Move image analysis into a server-side resumable worker so indexing does not require an open browser tab.
+- [ ] Add password recovery, email verification, account deletion/export, rate limiting, backup, and deployment hardening before public launch.
 
 ### Portfolio polish
 
@@ -36,11 +49,15 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 
 ## Current implementation notes
 
-- The retrieval prototype uses browser-side MobileCLIP-S0 image embeddings with cosine similarity.
-- Each image is represented by its whole-image embedding plus overlapping square crops; ranking blends global similarity with the best crop similarity.
-- Older single-vector catalog entries are upgraded and saved when they are first included in a search.
+- Fast analysis is the default: MobileCLIP-S0 computes a whole-image and centered-crop embedding, using WebGPU when available and falling back to CPU. Detailed mode adds overlapping crops, runs OWL-ViT, and computes up to two footwear-focused embeddings.
+- Detailed embeddings compare detected footwear crops when both query and product have them. Fast and detailed entries can still be compared through their whole-image/crop embeddings.
+- The optional detector downloads about 127 MB on first use and runs for each image; leave analysis in Fast mode for quicker searches and catalog imports.
+- `/benchmark.html` runs Fast and Detailed retrieval evaluation locally from a labeled `benchmark.json` folder and exports Recall@K, mAP@10, and inference latency. No benchmark dataset or user images are included in the repository.
+- Initial ABO Fast baseline (50 products, 100 seller alternate-view queries): Recall@1 10.0%, Recall@5 38.0%, Recall@10 60.0%, mAP@10 22.7%; median query latency 1,921 ms and p95 2,017 ms. See `README.md` for device, split, and interpretation details; the generated report is in the Git-ignored local dataset folder.
+- The initial detector-crop experiment on six saved photos moved the matching S1 photo from 5th (0.495) to 2nd (0.833), but this is too small a sample to establish general retrieval quality.
 - The inference runtime and quantized weights load from public CDNs on first use and are cached by the browser.
-- Images are passed to the local browser runtime; the app does not upload them to the model provider.
-- Product catalog images and embeddings are saved locally in IndexedDB; query photos are temporary.
-- The catalog is local to this browser/device and does not sync to a server or other devices.
+- Images are passed to the browser runtime, not the model providers. Catalog image files are uploaded to the private account's server storage; query photos remain local and only the embeddings are sent for search.
+- The older browser catalog remains in IndexedDB and can be copied into an account without deleting the local copy.
+- The current browser-side importer processes large folders serially; indexing 10,000 photos may take hours and requires the browser tab to remain open.
+- Search uses a NumPy exact scan across account embeddings and paginates returned products. A background model worker and dedicated vector index remain future work.
 - Similarity scores are ranking signals, not probabilities. This prototype does not search online product listings.

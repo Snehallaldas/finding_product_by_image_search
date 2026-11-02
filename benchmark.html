@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f2eb">
+    <title>PairUp — Retrieval Benchmark</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="benchmark.css">
+    <script type="module" src="benchmark.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="/" aria-label="PairUp home"><span class="wordmark-icon">P</span> pairup</a>
+      <span class="header-note">Computer vision evaluation</span>
+      <span class="status-pill"><span></span> LOCAL BENCHMARK</span>
+    </header>
+
+    <main>
+      <section class="intro benchmark-intro">
+        <p class="eyebrow">RETRIEVAL QUALITY / MODEL EVALUATION</p>
+        <h1>Measure the match.<br><span>Not just the demo.</span></h1>
+        <p class="intro-copy">Compare footwear image-search modes on a labeled dataset. Images and labels stay in this browser; only downloadable benchmark results leave it.</p>
+      </section>
+
+      <section class="benchmark-panel" aria-labelledby="benchmark-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">01 / YOUR TEST SET</p>
+            <h2 id="benchmark-title">Choose a benchmark folder</h2>
+          </div>
+          <span class="step-number">01</span>
+        </div>
+        <p class="section-copy">Select a folder containing <code>benchmark.json</code> and separate catalog and query images. Use held-out query photos from the same product identities, not duplicate images.</p>
+        <label class="benchmark-folder button button-outline" for="benchmark-folder">Choose benchmark folder <span aria-hidden="true">↗</span></label>
+        <input id="benchmark-folder" type="file" webkitdirectory multiple hidden>
+        <p id="benchmark-dataset" class="benchmark-dataset" role="status" aria-live="polite">No benchmark folder selected.</p>
+        <details class="manifest-help">
+          <summary>View the benchmark.json format</summary>
+          <pre><code>{
+  "version": 1,
+  "catalog": [
+    { "id": "shoe-001", "image": "catalog/shoe-001-front.jpg", "category": "shoes" },
+    { "id": "shoe-002", "image": "catalog/shoe-002-side.jpg", "category": "shoes" }
+  ],
+  "queries": [
+    { "id": "query-001", "image": "queries/shoe-001-outdoor.jpg", "relevant_product_ids": ["shoe-001"], "category": "shoes" }
+  ]
+}</code></pre>
+          <p class="section-copy">Each catalog image needs a unique product ID. Add one or more relevant IDs for every query; queries can have multiple correct products. Category is optional and can be <code>shoes</code>, <code>sandals</code>, or <code>all</code>.</p>
+        </details>
+
+        <div class="benchmark-controls">
+          <label class="filter-label" for="benchmark-mode">ANALYSIS MODES
+            <select id="benchmark-mode">
+              <option value="both">Compare Fast and Detailed</option>
+              <option value="fast">Fast only</option>
+              <option value="detailed">Detailed only (slow)</option>
+            </select>
+          </label>
+          <button class="button button-accent" id="benchmark-run" type="button" disabled>Run benchmark <span aria-hidden="true">↗</span></button>
+        </div>
+        <p class="benchmark-warning">Detailed mode downloads the OWL-ViT detector (about 127 MB) on first use. Both modes analyze images serially; larger test sets take longer. Keep this tab open.</p>
+        <p id="benchmark-status" class="benchmark-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="benchmark-results" class="benchmark-results" aria-labelledby="benchmark-results-title" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">02 / MEASURED RESULTS</p>
+            <h2 id="benchmark-results-title">Benchmark report</h2>
+          </div>
+          <button class="button button-outline" id="benchmark-download" type="button">Download JSON report</button>
+        </div>
+        <p id="benchmark-summary" class="section-copy"></p>
+        <div class="benchmark-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Mode</th>
+                <th scope="col">Recall@1</th>
+                <th scope="col">Recall@5</th>
+                <th scope="col">Recall@10</th>
+                <th scope="col">mAP@10</th>
+                <th scope="col">Median query (ms)</th>
+                <th scope="col">p95 query (ms)</th>
+                <th scope="col">Median catalog image (ms)</th>
+                <th scope="col">Total mode time (ms)</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-table-body"></tbody>
+          </table>
+        </div>
+        <p class="section-copy benchmark-caveat">Query latency includes image embedding and in-browser ranking after model initialization. The first catalog image includes model initialization/download; per-image percentiles and total mode time include that cost. Results describe this dataset and device only—not general model performance.</p>
+        <div id="benchmark-query-results" class="benchmark-query-results"></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>PAIRUP / COMPUTER VISION EVALUATION</span>
+      <a href="/">Return to visual search</a>
+    </footer>
+  </body>
+</html>
