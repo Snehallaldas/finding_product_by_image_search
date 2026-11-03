@@ -1,5 +1,5 @@
-import { embedImage } from "./image-embeddings.js?object-aware=1";
-import { retrievalMetrics, similarity } from "./visual-search.js?object-aware=1";
+import { embedImage } from "./image-embeddings.js?object-aware=1&multi-reference=1";
+import { bestReferenceSimilarity, retrievalMetrics } from "./visual-search.js?object-aware=1&multi-reference=1";
 
 const MAX_CATALOG_IMAGES = 1000;
 const MAX_QUERIES = 500;
@@ -39,7 +39,7 @@ async function loadDataset() {
   try {
     dataset = await parseDataset(files);
     elements.dataset.textContent =
-      `Loaded ${dataset.catalog.length} catalog images and ${dataset.queries.length} labeled queries.`;
+      `Loaded ${dataset.catalogImageCount} catalog images for ${dataset.catalog.length} products and ${dataset.queries.length} labeled queries.`;
     elements.run.disabled = false;
   } catch (error) {
     elements.dataset.textContent = `Could not load benchmark: ${error.message}`;
@@ -76,10 +76,13 @@ async function parseDataset(files) {
   const catalog = manifest.catalog.map((entry) => {
     if (productIds.has(entry.id)) throw new Error(`Duplicate catalog product ID: ${entry.id}`);
     productIds.add(entry.id);
-    const path = normalizePath(entry.image);
-    if (catalogPaths.has(path.toLowerCase())) throw new Error(`Duplicate catalog image: ${path}`);
-    catalogPaths.add(path.toLowerCase());
-    return { ...entry, path, file: findImageFile(filesByPath, path) };
+    const paths = [entry.image, ...(entry.additional_images || [])].map(normalizePath);
+    const files = paths.map((path) => {
+      if (catalogPaths.has(path.toLowerCase())) throw new Error(`Duplicate catalog image: ${path}`);
+      catalogPaths.add(path.toLowerCase());
+      return findImageFile(filesByPath, path);
+    });
+    return { ...entry, files };
   });
   const queryIds = new Set();
   const queryPaths = new Set();
@@ -104,14 +107,24 @@ async function parseDataset(files) {
     }
     return { ...entry, path, file: findImageFile(filesByPath, path) };
   });
-  return { catalog, queries };
+  return {
+    catalog,
+    catalogImageCount: catalog.reduce((count, product) => count + product.files.length, 0),
+    queries,
+  };
 }
 
 function validateManifest(manifest) {
   if (manifest?.version !== 1 || !Array.isArray(manifest.catalog) || !Array.isArray(manifest.queries)) {
     throw new Error("Expected version 1 with catalog and queries arrays.");
   }
-  if (!manifest.catalog.length || manifest.catalog.length > MAX_CATALOG_IMAGES) {
+  const catalogImageCount = Array.isArray(manifest.catalog)
+    ? manifest.catalog.reduce((count, product) => {
+      const additionalImages = product?.additional_images;
+      return count + 1 + (Array.isArray(additionalImages) ? additionalImages.length : 0);
+    }, 0)
+    : 0;
+  if (!manifest.catalog.length || catalogImageCount > MAX_CATALOG_IMAGES) {
     throw new Error(`Catalog must contain 1–${MAX_CATALOG_IMAGES} images.`);
   }
   if (!manifest.queries.length || manifest.queries.length > MAX_QUERIES) {
@@ -120,6 +133,11 @@ function validateManifest(manifest) {
   for (const product of manifest.catalog) {
     if (!isNonEmptyString(product.id) || !isNonEmptyString(product.image)) {
       throw new Error("Every catalog entry needs a non-empty id and image path.");
+    }
+    if (product.additional_images !== undefined
+      && (!Array.isArray(product.additional_images)
+        || product.additional_images.some((path) => !isNonEmptyString(path)))) {
+      throw new Error(`Additional catalog images for ${product.id} must be an array of non-empty paths.`);
     }
     if (!["shoes", "sandals"].includes(product.category)) {
       throw new Error(`Catalog product ${product.id} needs category shoes or sandals.`);
@@ -189,13 +207,14 @@ async function runBenchmark() {
         deviceMemoryGb: navigator.deviceMemory || null,
       },
       dataset: {
-        catalogImageCount: dataset.catalog.length,
+        catalogImageCount: dataset.catalogImageCount,
         queryCount: dataset.queries.length,
         productCount: new Set(dataset.catalog.map((product) => product.id)).size,
       },
       metricDefinitions: {
         recallAtK: "Relevant catalog product IDs in the top K divided by all relevant IDs for that query.",
         meanAveragePrecisionAt10: "Macro-average of AP@10; AP@10 divides precision-at-relevant-ranks by min(number of relevant IDs, 10).",
+        productScore: "For products with multiple catalog images, the product score is the highest similarity to any one reference image.",
         queryLatencyMs: "Query image embedding plus in-browser ranking after model initialization.",
         catalogImageLatencyMs: "Catalog image embedding; the first image includes model initialization and any first-use downloads.",
       },
@@ -219,12 +238,17 @@ async function runMode(mode) {
   const detailed = mode === "detailed";
   const catalog = [];
   const catalogTimes = [];
-  for (const [index, product] of dataset.catalog.entries()) {
-    setProgress(mode, "catalog", index + 1, dataset.catalog.length, product.id);
-    const start = performance.now();
-    const embedding = await embedFile(product.file, detailed);
-    catalogTimes.push(performance.now() - start);
-    catalog.push({ ...product, embedding });
+  let catalogImageIndex = 0;
+  for (const product of dataset.catalog) {
+    const embeddings = [];
+    for (const file of product.files) {
+      catalogImageIndex += 1;
+      setProgress(mode, "catalog", catalogImageIndex, dataset.catalogImageCount, product.id);
+      const start = performance.now();
+      embeddings.push(await embedFile(file, detailed));
+      catalogTimes.push(performance.now() - start);
+    }
+    catalog.push({ ...product, embeddings });
   }
 
   const queryResults = [];
@@ -237,7 +261,10 @@ async function runMode(mode) {
       ? catalog.filter((product) => product.category === query.category)
       : catalog;
     const ranked = candidates
-      .map((product) => ({ id: product.id, score: similarity(embedding, product.embedding) }))
+      .map((product) => ({
+        id: product.id,
+        score: bestReferenceSimilarity(embedding, product.embeddings),
+      }))
       .sort((left, right) => right.score - left.score);
     const elapsedMs = performance.now() - start;
     queryTimes.push(elapsedMs);

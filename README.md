@@ -58,7 +58,7 @@ Manifest example:
 {
   "version": 1,
   "catalog": [
-    { "id": "shoe-001", "image": "catalog/shoe-001-front.jpg", "category": "shoes" },
+    { "id": "shoe-001", "image": "catalog/shoe-001-front.jpg", "additional_images": ["catalog/shoe-001-side.jpg"], "category": "shoes" },
     { "id": "sandal-002", "image": "catalog/sandal-002-side.jpg", "category": "sandals" }
   ],
   "queries": [
@@ -72,7 +72,7 @@ Manifest example:
 }
 ```
 
-Catalog IDs identify the ground-truth products, not individual filenames; use a different held-out query photo and list every correct catalog product ID in `relevant_product_ids`. Do not reuse the same image in catalog and queries. Collect varied views, backgrounds, and lighting, use product identities rather than filenames as labels, and ensure the dataset is legally usable. The browser accepts at most 1,000 catalog images and 500 queries per run.
+Catalog IDs identify the ground-truth products, not individual filenames. Each product requires one `image` and may include additional reference views in an `additional_images` array. The product score is the best similarity across its reference views. Use different, held-out query photos and list every correct product ID in `relevant_product_ids`; never reuse a reference image as a query. Collect varied views, backgrounds, and lighting, use product identities rather than filenames as labels, and ensure the dataset is legally usable. The browser accepts at most 1,000 catalog images total and 500 queries per run.
 
 The report compares Fast and Detailed analysis, with macro Recall@1/5/10, mAP@10, query-latency median/p95, catalog-image latency, and total per-mode time. Recall@K is the fraction of labeled relevant products retrieved by rank K. AP@10 averages precision at relevant ranks through rank 10, divided by `min(number of relevant products, 10)`; mAP@10 is the mean over queries. Query latency includes query-image embedding and browser-side ranking after model initialization. First-use model setup/download is counted in the first catalog-image latency and total mode time. Save the downloadable JSON report alongside notes about the device, dataset composition, and any labeling limitations. Small or biased datasets are useful for iteration but do not establish general model quality.
 
@@ -85,6 +85,10 @@ The first measured run used 50 ABO products (26 shoes and 24 sandals) and 100 he
 | 10.0% | 38.0% | 60.0% | 22.7% | 1,921 ms | 2,017 ms | 318,670 ms |
 
 This is a preliminary seller-image baseline, not a real-world performance claim: queries are alternate seller listing photos rather than user camera photos, category labels are heuristic with one visually reviewed pump correction, and the run covers one device/browser. The complete JSON report is saved locally as `benchmark-data/abo-footwear/fast-results.json`; the dataset folder is Git-ignored.
+
+### Paired real-photo reference-view experiment
+
+Fast mode was evaluated on the same 23 held-out queries for 14 products, first with one catalog image per product and then with 11 additional reference views. Recall@5 increased from 43.5% to 60.9%, while Recall@1 changed from 13.0% to 8.7%, Recall@10 remained 82.6%, and mAP@10 changed from 27.2% to 26.9%. Median query latency was similar (2,038 ms vs. 2,031 ms); embedding the 25-image catalog took longer than the 14-image catalog. This small, device-specific comparison is inconclusive about general retrieval quality. The datasets and JSON reports are saved locally in the Git-ignored `benchmark-data/multi-view-split-single-reference/` and `benchmark-data/multi-view-split-multiple-references/` folders.
 
 ### Prepare an Amazon Berkeley Objects footwear subset
 

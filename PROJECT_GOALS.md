@@ -26,8 +26,16 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 - [x] Add fast-by-default analysis, optional detailed OWL-ViT footwear detections, and WebGPU acceleration with CPU fallback.
 - [x] Add MobileCLIP object-crop embeddings for detector-focused matching when detailed analysis is selected.
 - [x] Build a browser-local labeled retrieval benchmark that compares Fast and Detailed modes and exports metrics and latency.
+- [x] Compare single-view and multiple-view product references on the same held-out real-photo queries.
 - [ ] Validate detector-focused matching on a broader labeled footwear query set; the initial six-photo S1 experiment moved the matching photo from 5th to 2nd.
 - [x] Assemble an initial legally usable, labeled footwear catalog with shoes and sandals.
+- [x] Prepare a separate real-photo benchmark set from the latest numbered images (11 products, 31 queries; exclude the group flagged for relabeling).
+- [x] Run Fast and Detailed on the new photo set and save per-query results.
+- [x] Confirm product-level non-overlap with the existing six-product pilot and run Fast/Detailed on the combined labeled set.
+- [x] Exclude pair-016 after identifying a heel/back mismatch between its catalog and query photos; prepare a corrected evaluation set.
+- [x] Rerun Fast and Detailed on the corrected 16-product, 34-query set and save per-query results.
+- [x] Remove duplicate catalog entries for pairs 002/006 and 004/005; replace pair-002's back-only reference with the user's clearer photo.
+- [x] Rerun Fast and Detailed on the final 14-product, 34-query label-cleaned set and save per-query results.
 - [ ] Create and label a broader repeatable query set with real-world photos, varied backgrounds, and lighting; the current ABO queries are seller alternate views only.
 - [x] Measure Recall@K and search latency on the initial ABO set and record the baseline in the project documentation.
 - [ ] Compare candidate embedding models based on measured quality, runtime, and deployment constraints.
@@ -53,6 +61,7 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 - Detailed embeddings compare detected footwear crops when both query and product have them. Fast and detailed entries can still be compared through their whole-image/crop embeddings.
 - The optional detector downloads about 127 MB on first use and runs for each image; leave analysis in Fast mode for quicker searches and catalog imports.
 - `/benchmark.html` runs Fast and Detailed retrieval evaluation locally from a labeled `benchmark.json` folder and exports Recall@K, mAP@10, and inference latency. No benchmark dataset or user images are included in the repository.
+- Paired Fast-mode reference-view experiment (14 products, same 23 held-out queries): adding 11 catalog views raised Recall@5 from 43.5% to 60.9%, while Recall@1 changed from 13.0% to 8.7%, Recall@10 stayed at 82.6%, and mAP@10 changed from 27.2% to 26.9%. Median query latency was similar (2,038 ms vs. 2,031 ms); the 25-image catalog took longer to embed than the 14-image catalog. This small, device-specific set does not establish a general benefit. Reports and ignored datasets are under `benchmark-data/multi-view-split-single-reference/` and `benchmark-data/multi-view-split-multiple-references/`.
 - Initial ABO Fast baseline (50 products, 100 seller alternate-view queries): Recall@1 10.0%, Recall@5 38.0%, Recall@10 60.0%, mAP@10 22.7%; median query latency 1,921 ms and p95 2,017 ms. See `README.md` for device, split, and interpretation details; the generated report is in the Git-ignored local dataset folder.
 - The initial detector-crop experiment on six saved photos moved the matching S1 photo from 5th (0.495) to 2nd (0.833), but this is too small a sample to establish general retrieval quality.
 - The inference runtime and quantized weights load from public CDNs on first use and are cached by the browser.

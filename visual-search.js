@@ -38,6 +38,13 @@ export function similarity(left, right) {
   return Math.max(-1, Math.min(1, 0.35 * globalScore + 0.65 * bestCropScore));
 }
 
+export function bestReferenceSimilarity(queryEmbedding, referenceEmbeddings) {
+  if (!Array.isArray(referenceEmbeddings) || referenceEmbeddings.length === 0) {
+    throw new TypeError("At least one catalog reference embedding is required.");
+  }
+  return Math.max(...referenceEmbeddings.map((reference) => similarity(queryEmbedding, reference)));
+}
+
 function bestPairwiseSimilarity(leftVectors, rightVectors) {
   let bestScore = Number.NEGATIVE_INFINITY;
   for (const left of leftVectors) {

@@ -10,8 +10,8 @@
       li { margin: .4rem 0; }
     </style>
     <script type="module">
-      import { normalizeEmbedding, rankProducts, retrievalMetrics, similarity } from "./visual-search.js?object-aware=1";
-      import { selectFootwearDetections } from "./image-embeddings.js?object-aware=1";
+      import { bestReferenceSimilarity, normalizeEmbedding, rankProducts, retrievalMetrics, similarity } from "./visual-search.js?object-aware=1&multi-reference=1";
+      import { selectFootwearDetections } from "./image-embeddings.js?object-aware=1&multi-reference=1";
 
       const results = document.querySelector("#results");
       const tests = [];
@@ -41,6 +41,21 @@
       });
       test("equivalent embeddings have cosine similarity 1", () => {
         assert(Math.abs(similarity(first, same) - 1) < 0.0001, "Equivalent vectors should match exactly.");
+      });
+      test("multiple catalog views use the best matching reference for a product", () => {
+        assert(
+          Math.abs(bestReferenceSimilarity(first, [orthogonal, same]) - 1) < 0.0001,
+          "The strongest catalog-view match should determine the product score.",
+        );
+      });
+      test("multiple-reference scoring rejects an empty catalog gallery", () => {
+        let rejected = false;
+        try {
+          bestReferenceSimilarity(first, []);
+        } catch (error) {
+          rejected = error instanceof TypeError;
+        }
+        assert(rejected, "Products without any catalog reference must be rejected.");
       });
       test("unrelated orthogonal embeddings have lower similarity", () => {
         assert(similarity(first, orthogonal) < similarity(first, same), "Orthogonal embeddings should rank lower.");

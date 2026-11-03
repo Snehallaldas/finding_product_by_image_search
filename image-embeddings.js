@@ -1,4 +1,4 @@
-import { normalizeEmbedding } from "./visual-search.js?object-aware=1";
+import { normalizeEmbedding } from "./visual-search.js?object-aware=1&multi-reference=1";
 
 const MODEL_ID = "Xenova/mobileclip_s0";
 const DETECTOR_MODEL_ID = "Xenova/owlvit-base-patch32";

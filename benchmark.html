@@ -7,7 +7,7 @@
     <title>PairUp — Retrieval Benchmark</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="benchmark.css">
-    <script type="module" src="benchmark.js"></script>
+    <script type="module" src="benchmark.js?multi-reference=1"></script>
   </head>
   <body>
     <header class="site-header">
@@ -40,14 +40,14 @@
           <pre><code>{
   "version": 1,
   "catalog": [
-    { "id": "shoe-001", "image": "catalog/shoe-001-front.jpg", "category": "shoes" },
+    { "id": "shoe-001", "image": "catalog/shoe-001-front.jpg", "additional_images": ["catalog/shoe-001-side.jpg"], "category": "shoes" },
     { "id": "shoe-002", "image": "catalog/shoe-002-side.jpg", "category": "shoes" }
   ],
   "queries": [
     { "id": "query-001", "image": "queries/shoe-001-outdoor.jpg", "relevant_product_ids": ["shoe-001"], "category": "shoes" }
   ]
 }</code></pre>
-          <p class="section-copy">Each catalog image needs a unique product ID. Add one or more relevant IDs for every query; queries can have multiple correct products. Category is optional and can be <code>shoes</code>, <code>sandals</code>, or <code>all</code>.</p>
+          <p class="section-copy">Each product ID has one required catalog image and may include additional reference views in <code>additional_images</code>. A product's score is its best similarity across its reference views. Keep every reference photo separate from held-out queries. Add one or more relevant IDs for every query; queries can have multiple correct products. Category is optional and can be <code>shoes</code>, <code>sandals</code>, or <code>all</code>.</p>
         </details>
 
         <div class="benchmark-controls">
