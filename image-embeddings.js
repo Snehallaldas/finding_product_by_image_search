@@ -1,12 +1,18 @@
 import { normalizeEmbedding } from "./visual-search.js?object-aware=1&multi-reference=1";
 
-const MODEL_ID = "Xenova/mobileclip_s0";
+const MODEL_OPTIONS = {
+  mobileclip: "Xenova/mobileclip_s0",
+  dinov2: "Xenova/dinov2-small",
+};
+const requestedModel = new URL(import.meta.url).searchParams.get("model");
+const MODEL_ID = MODEL_OPTIONS[requestedModel] || MODEL_OPTIONS.mobileclip;
 const DETECTOR_MODEL_ID = "Xenova/owlvit-base-patch32";
 const TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
 const FOOTWEAR_LABELS = ["sandal", "shoe", "footwear"];
 const MAX_OBJECT_CROPS = 2;
 const DETECTION_THRESHOLD = 0.06;
 export const EMBEDDING_VERSION = 3;
+export const EMBEDDING_MODEL_ID = MODEL_ID;
 let extractorPromise;
 let detectorPromise;
 let extractorDevice = "wasm";

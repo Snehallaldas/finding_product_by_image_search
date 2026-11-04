@@ -1,4 +1,9 @@
-import { embedImage, EMBEDDING_VERSION } from "./image-embeddings.js?object-aware=1";
+const requestedModel = new URL(location.href).searchParams.get("model");
+const appModel = requestedModel === "dinov2" ? "dinov2" : "mobileclip";
+const {
+  embedImage,
+  EMBEDDING_VERSION,
+} = await import(`./image-embeddings.js?object-aware=1&model=${appModel}`);
 import { loadProducts } from "./catalog-store.js";
 
 const CATALOG_PAGE_SIZE = 32;
@@ -161,6 +166,9 @@ async function showSignedIn() {
   elements.searchSection.hidden = false;
   elements.resultsSection.hidden = false;
   elements.catalogSection.hidden = false;
+  elements.modelStatus.textContent = appModel === "dinov2"
+    ? "DINOv2-small is active (about 25 MB). Internet is needed for the initial download."
+    : "Fast mode loads MobileCLIP on first use (about 12 MB). Internet is needed for the initial download.";
   showNotice("");
   await loadCatalog(1);
 }

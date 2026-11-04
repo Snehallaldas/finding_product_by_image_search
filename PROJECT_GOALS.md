@@ -27,6 +27,8 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 - [x] Add MobileCLIP object-crop embeddings for detector-focused matching when detailed analysis is selected.
 - [x] Build a browser-local labeled retrieval benchmark that compares Fast and Detailed modes and exports metrics and latency.
 - [x] Compare single-view and multiple-view product references on the same held-out real-photo queries.
+- [x] Measure category filtering against unfiltered retrieval on the same 23 held-out queries.
+- [x] Compare Fast and Detailed retrieval on the same category-filtered real-photo queries.
 - [ ] Validate detector-focused matching on a broader labeled footwear query set; the initial six-photo S1 experiment moved the matching photo from 5th to 2nd.
 - [x] Assemble an initial legally usable, labeled footwear catalog with shoes and sandals.
 - [x] Prepare a separate real-photo benchmark set from the latest numbered images (11 products, 31 queries; exclude the group flagged for relabeling).
@@ -38,7 +40,7 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 - [x] Rerun Fast and Detailed on the final 14-product, 34-query label-cleaned set and save per-query results.
 - [ ] Create and label a broader repeatable query set with real-world photos, varied backgrounds, and lighting; the current ABO queries are seller alternate views only.
 - [x] Measure Recall@K and search latency on the initial ABO set and record the baseline in the project documentation.
-- [ ] Compare candidate embedding models based on measured quality, runtime, and deployment constraints.
+- [x] Compare candidate embedding models based on measured quality, runtime, and deployment constraints.
 
 ### Private backend and catalog scale
 
@@ -62,6 +64,10 @@ Build a portfolio-ready web app that finds visually similar shoes and sandals fr
 - The optional detector downloads about 127 MB on first use and runs for each image; leave analysis in Fast mode for quicker searches and catalog imports.
 - `/benchmark.html` runs Fast and Detailed retrieval evaluation locally from a labeled `benchmark.json` folder and exports Recall@K, mAP@10, and inference latency. No benchmark dataset or user images are included in the repository.
 - Paired Fast-mode reference-view experiment (14 products, same 23 held-out queries): adding 11 catalog views raised Recall@5 from 43.5% to 60.9%, while Recall@1 changed from 13.0% to 8.7%, Recall@10 stayed at 82.6%, and mAP@10 changed from 27.2% to 26.9%. Median query latency was similar (2,038 ms vs. 2,031 ms); the 25-image catalog took longer to embed than the 14-image catalog. This small, device-specific set does not establish a general benefit. Reports and ignored datasets are under `benchmark-data/multi-view-split-single-reference/` and `benchmark-data/multi-view-split-multiple-references/`.
+- Paired Fast-mode category-filter experiment (14 products, same 23 held-out queries and 25 references): assigning each query its labeled shoe/sandal category left Recall@1 at 8.7%, while Recall@5 rose from 60.9% to 69.6%, Recall@10 from 82.6% to 95.7%, and mAP@10 from 26.9% to 36.2%. Category filtering helped retrieval depth but did not improve top-1 accuracy. The report and ignored datasets are under `benchmark-data/multi-view-split-category-unfiltered/` and `benchmark-data/multi-view-split-category-filtered/`.
+- Paired Fast-vs-Detailed category-filtered run (14 products, same 23 held-out queries and 25 references): Detailed raised Recall@1 from 8.7% to 17.4%, but reduced Recall@5 from 69.6% to 65.2%, Recall@10 from 95.7% to 91.3%, and mAP@10 from 36.2% to 34.7%. Median query latency increased from 1,235 ms to 11,466 ms, and the Detailed run took 721,616 ms total. Pair-008 queries ranked 2nd/3rd in Fast and 10th/6th in Detailed. Results are device- and dataset-specific; see the report in the Git-ignored `benchmark-data/multi-view-split-category-filtered/detailed-results.json`.
+- Five-query alternative-model pilot: DINOv2-small reached Recall@1 20.0%, Recall@5 100.0%, Recall@10 100.0%, and mAP@10 49.0%, versus MobileCLIP's 20.0%, 80.0%, 100.0%, and 48.9% on the same queries. Median query latency was similar (1,274 ms vs. 1,252 ms). This is too small to select a production model; a full comparison remains open. The ignored pilot report is under `benchmark-data/dinov2-small-pilot/`.
+- Full Fast-mode model comparison (14 products, 25 references, 23 category-filtered queries): DINOv2-small reached Recall@1 34.8%, Recall@5 87.0%, Recall@10 91.3%, and mAP@10 53.6%, versus MobileCLIP's 8.7%, 69.6%, 95.7%, and 36.2%. Median query latency was 1,607 ms versus 1,235 ms. DINOv2-small improved top-1, top-5, and mAP but reduced Recall@10 and increased latency; keep the choice configurable until a broader benchmark is available. The ignored report is under `benchmark-data/dinov2-small-full/`.
 - Initial ABO Fast baseline (50 products, 100 seller alternate-view queries): Recall@1 10.0%, Recall@5 38.0%, Recall@10 60.0%, mAP@10 22.7%; median query latency 1,921 ms and p95 2,017 ms. See `README.md` for device, split, and interpretation details; the generated report is in the Git-ignored local dataset folder.
 - The initial detector-crop experiment on six saved photos moved the matching S1 photo from 5th (0.495) to 2nd (0.833), but this is too small a sample to establish general retrieval quality.
 - The inference runtime and quantized weights load from public CDNs on first use and are cached by the browser.

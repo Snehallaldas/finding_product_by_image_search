@@ -1,4 +1,4 @@
-import { embedImage } from "./image-embeddings.js?object-aware=1&multi-reference=1";
+import { EMBEDDING_MODEL_ID, embedImage } from "./image-embeddings.js?object-aware=1&multi-reference=1";
 import { bestReferenceSimilarity, retrievalMetrics } from "./visual-search.js?object-aware=1&multi-reference=1";
 
 const MAX_CATALOG_IMAGES = 1000;
@@ -198,7 +198,7 @@ async function runBenchmark() {
     const report = {
       reportVersion: 1,
       generatedAt: new Date().toISOString(),
-      model: "Xenova/mobileclip_s0",
+      model: EMBEDDING_MODEL_ID,
       detector: "Xenova/owlvit-base-patch32",
       browser: navigator.userAgent,
       device: {

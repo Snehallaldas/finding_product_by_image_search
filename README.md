@@ -38,6 +38,8 @@ Search is performed by the API using an exact NumPy cosine-similarity scan over 
 
 The first Fast analysis in a browser downloads the Transformers.js runtime and MobileCLIP-S0 weights (about 12 MB) from public CDNs. The optional Detailed mode also downloads OWL-ViT (about 127 MB) and runs it for each image, so it is much slower. Downloads are cached by that browser. Images are not uploaded to the model providers. Model details and licenses: [MobileCLIP-S0](https://huggingface.co/Xenova/mobileclip_s0) ([license](https://huggingface.co/Xenova/mobileclip_s0/raw/main/LICENSE)) and [OWL-ViT](https://huggingface.co/Xenova/owlvit-base-patch32) ([Apache-2.0](https://huggingface.co/google/owlvit-base-patch32/raw/main/LICENSE)).
 
+For an experimental DINOv2-small live-search run, open the app with `?model=dinov2`, for example `http://localhost:8000/?model=dinov2`. Keep a catalog indexed with the same model as the search query; embeddings from different models should not be mixed. MobileCLIP remains the default because it is smaller and faster.
+
 ## Retrieval benchmark
 
 Open [http://localhost:8000/benchmark.html](http://localhost:8000/benchmark.html) or select **Evaluate retrieval** in the app footer. The benchmark runs entirely in the browser and does not require an account. Select one folder containing `benchmark.json`, a `catalog` directory, and a separate `queries` directory:
@@ -89,6 +91,20 @@ This is a preliminary seller-image baseline, not a real-world performance claim:
 ### Paired real-photo reference-view experiment
 
 Fast mode was evaluated on the same 23 held-out queries for 14 products, first with one catalog image per product and then with 11 additional reference views. Recall@5 increased from 43.5% to 60.9%, while Recall@1 changed from 13.0% to 8.7%, Recall@10 remained 82.6%, and mAP@10 changed from 27.2% to 26.9%. Median query latency was similar (2,038 ms vs. 2,031 ms); embedding the 25-image catalog took longer than the 14-image catalog. This small, device-specific comparison is inconclusive about general retrieval quality. The datasets and JSON reports are saved locally in the Git-ignored `benchmark-data/multi-view-split-single-reference/` and `benchmark-data/multi-view-split-multiple-references/` folders.
+
+### Paired real-photo category-filter experiment
+
+Fast mode was also compared with and without restricting each query to its labeled category, using the same 14 products, 25 catalog references, and 23 held-out queries. Pair-003 is labeled as a sandal. Filtering left Recall@1 at 8.7%, while Recall@5 rose from 60.9% to 69.6%, Recall@10 from 82.6% to 95.7%, and mAP@10 from 26.9% to 36.2%. For the two pair-008 queries, the correct shoe moved from 3rd to 2nd and from 5th to 3rd, but did not reach 1st in either case. This small, device-specific experiment suggests category filtering improves retrieval depth, not top-1 matching. The datasets and reports are saved locally in the Git-ignored `benchmark-data/multi-view-split-category-unfiltered/` and `benchmark-data/multi-view-split-category-filtered/` folders.
+
+### Paired Fast and Detailed category-filtered results
+
+On the same 14 products, 25 references, and 23 category-filtered held-out queries, Detailed mode increased Recall@1 from 8.7% to 17.4%, but reduced Recall@5 from 69.6% to 65.2%, Recall@10 from 95.7% to 91.3%, and mAP@10 from 36.2% to 34.7%. Median query latency rose from 1,235 ms to 11,466 ms; the Detailed run took 721,616 ms total. For pair-008, the correct product ranked 2nd/3rd in Fast and 10th/6th in Detailed. Detailed mode improved top-1 accuracy overall in this small run, but was slower and worse on the other aggregate retrieval metrics; this does not establish a general advantage. The Detailed JSON report is saved locally in the Git-ignored `benchmark-data/multi-view-split-category-filtered/detailed-results.json`.
+
+### Small alternative-model pilot
+
+To limit download and inference cost, DINOv2-small was tested on five of the same category-filtered queries against the same 25 catalog references. DINOv2-small measured Recall@1 20.0%, Recall@5 100.0%, Recall@10 100.0%, and mAP@10 49.0%; MobileCLIP measured 20.0%, 80.0%, 100.0%, and 48.9% on those queries. Median query latency was similar (1,274 ms vs. 1,252 ms). This five-query pilot is not large enough to choose a model; the full model comparison remains open. The DINOv2 report is saved locally in the Git-ignored `benchmark-data/dinov2-small-pilot/comparison-results.json`.
+
+The full 23-query Fast-mode comparison measured DINOv2-small at Recall@1 34.8%, Recall@5 87.0%, Recall@10 91.3%, and mAP@10 53.6%, versus MobileCLIP's 8.7%, 69.6%, 95.7%, and 36.2%. Median query latency was 1,607 ms versus 1,235 ms. DINOv2-small improved top-1, top-5, and mAP, but reduced Recall@10 and was slower. These results are specific to this small dataset and device; keep the model choice configurable rather than treating this as a final production decision. The full DINOv2 report is saved locally in the Git-ignored `benchmark-data/dinov2-small-full/comparison-results.json`.
 
 ### Prepare an Amazon Berkeley Objects footwear subset
 
